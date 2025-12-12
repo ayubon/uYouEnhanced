@@ -55,6 +55,8 @@ extern const void *kDeArrowVideoIdKey;
 @property (nonatomic, copy) NSString *deArrowOriginalTitle;
 @property (nonatomic, copy) NSString *deArrowCurrentVideoId;
 - (void)da_applyDeArrowTitle:(NSString *)newTitle;
+- (void)da_attemptTitleUpdate:(NSString *)newTitle;
+- (BOOL)da_findTitleLabelInView:(UIView *)view withNewTitle:(NSString *)newTitle depth:(int)depth;
 @end
 
 @class DeArrowResult;

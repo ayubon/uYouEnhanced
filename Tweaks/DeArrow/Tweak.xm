@@ -149,34 +149,106 @@ static NSString *extractVideoId(id object) {
 - (void)da_applyDeArrowTitle:(NSString *)newTitle {
     if (!newTitle.length) return;
     
-    // Try to find and update title label in player overlay
-    if ([self respondsToSelector:@selector(view)]) {
-        UIView *playerView = self.view;
-        if ([playerView isKindOfClass:%c(YTPlayerView)]) {
-            YTMainAppVideoPlayerOverlayView *overlayView = (YTMainAppVideoPlayerOverlayView *)[(YTPlayerView *)playerView overlayView];
-            if ([overlayView isKindOfClass:%c(YTMainAppVideoPlayerOverlayView)]) {
-                // Find title label in controls overlay
-                YTMainAppControlsOverlayView *controlsOverlay = overlayView.controlsOverlayView;
-                if (controlsOverlay) {
-                    // Try to access videoTitle property or find label
-                    @try {
-                        id titleView = [controlsOverlay valueForKey:@"_videoTitle"];
-                        if ([titleView respondsToSelector:@selector(setText:)]) {
-                            // Store original
-                            NSString *original = [titleView respondsToSelector:@selector(text)] ? [titleView text] : nil;
-                            if (original && !self.deArrowOriginalTitle) {
-                                self.deArrowOriginalTitle = original;
-                            }
-                            [titleView setText:newTitle];
-                            DALog(@"Updated title via _videoTitle");
-                        }
-                    } @catch (NSException *e) {
-                        DALog(@"Exception accessing _videoTitle: %@", e);
+    DALog(@"Will apply DeArrow title for %@: %@", self.deArrowCurrentVideoId, newTitle);
+    
+    // Schedule repeated attempts to find and update the title
+    // The metadata view may not exist immediately when video starts
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self da_attemptTitleUpdate:newTitle];
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self da_attemptTitleUpdate:newTitle];
+    });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [self da_attemptTitleUpdate:newTitle];
+    });
+}
+
+%new
+- (void)da_attemptTitleUpdate:(NSString *)newTitle {
+    // Get the watch view controller's view hierarchy
+    UIViewController *watchVC = nil;
+    UIViewController *current = (UIViewController *)self;
+    while (current) {
+        if ([current isKindOfClass:%c(YTWatchViewController)] || 
+            [NSStringFromClass([current class]) containsString:@"Watch"]) {
+            watchVC = current;
+            break;
+        }
+        current = current.parentViewController;
+    }
+    
+    if (!watchVC) {
+        DALog(@"Could not find watch view controller");
+        return;
+    }
+    
+    DALog(@"Found watch VC: %@, searching for title...", NSStringFromClass([watchVC class]));
+    
+    // Search the entire view hierarchy for title-like labels
+    [self da_findTitleLabelInView:watchVC.view withNewTitle:newTitle depth:0];
+}
+
+%new
+- (BOOL)da_findTitleLabelInView:(UIView *)view withNewTitle:(NSString *)newTitle depth:(int)depth {
+    if (depth > 15) return NO;
+    
+    // Check UILabel
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        NSString *text = label.text;
+        
+        // Video titles are typically 20+ chars, allow multiple lines
+        if (text.length > 20 && (label.numberOfLines == 0 || label.numberOfLines > 1)) {
+            // Check if this looks like a video title (not a channel name, not a count)
+            // Title labels typically have larger fonts
+            if (label.font.pointSize >= 16) {
+                if (!self.deArrowOriginalTitle) {
+                    self.deArrowOriginalTitle = text;
+                }
+                label.text = newTitle;
+                DALog(@"✅ Updated UILabel: font=%.0f lines=%ld '%@' -> '%@'", 
+                      label.font.pointSize, (long)label.numberOfLines, text, newTitle);
+                return YES;
+            }
+        }
+    }
+    
+    // Check for ASTextNode (Texture framework)
+    if ([view isKindOfClass:%c(_ASDisplayView)]) {
+        // ASDisplayView wraps ASDisplayNode
+        id node = [view valueForKey:@"asyncdisplaykit_node"];
+        if ([node isKindOfClass:%c(ASTextNode)]) {
+            NSAttributedString *attrText = [node valueForKey:@"attributedText"];
+            NSString *text = attrText.string;
+            
+            if (text.length > 20) {
+                // Get font size from attributed string
+                UIFont *font = [attrText attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
+                if (font.pointSize >= 16) {
+                    if (!self.deArrowOriginalTitle) {
+                        self.deArrowOriginalTitle = text;
                     }
+                    
+                    // Create new attributed string with same attributes
+                    NSMutableAttributedString *newAttr = [[NSMutableAttributedString alloc] initWithString:newTitle attributes:[attrText attributesAtIndex:0 effectiveRange:nil]];
+                    [node setValue:newAttr forKey:@"attributedText"];
+                    
+                    DALog(@"✅ Updated ASTextNode: font=%.0f '%@' -> '%@'", font.pointSize, text, newTitle);
+                    return YES;
                 }
             }
         }
     }
+    
+    // Recurse
+    for (UIView *subview in view.subviews) {
+        if ([self da_findTitleLabelInView:subview withNewTitle:newTitle depth:depth+1]) {
+            return YES;
+        }
+    }
+    
+    return NO;
 }
 
 %end

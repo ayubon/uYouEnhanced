@@ -72,28 +72,6 @@ static NSString *extractVideoId(id object) {
     return nil;
 }
 
-/**
- * Check if the current view/context is a feed (home, search, etc.) vs watch page
- */
-static BOOL isInFeedContext(UIView *view) {
-    UIResponder *responder = view;
-    while (responder) {
-        NSString *className = NSStringFromClass([responder class]);
-        if ([className containsString:@"Feed"] || 
-            [className containsString:@"Search"] ||
-            [className containsString:@"Subscription"] ||
-            [className containsString:@"Browse"]) {
-            return YES;
-        }
-        if ([className containsString:@"Watch"] || 
-            [className containsString:@"Player"]) {
-            return NO;
-        }
-        responder = responder.nextResponder;
-    }
-    return YES; // Default to feed
-}
-
 #pragma mark - Main Hooks Group
 
 %group DeArrowMain
@@ -257,7 +235,7 @@ static BOOL isInFeedContext(UIView *view) {
             if ([controller respondsToSelector:@selector(model)]) {
                 model = [controller model];
             } else if ([controller respondsToSelector:@selector(renderer)]) {
-                model = [controller renderer];
+                model = [(YTInnerTubeSectionController *)controller renderer];
             }
             
             if (model) {
@@ -483,11 +461,11 @@ static BOOL isInFeedContext(UIView *view) {
     // Get video ID from the watch endpoint
     NSString *videoId = nil;
     @try {
-        id navEndpoint = [self valueForKey:@"_navEndpoint"];
+        YTICommand *navEndpoint = [self valueForKey:@"_navEndpoint"];
         if ([navEndpoint respondsToSelector:@selector(watchEndpoint)]) {
-            id watchEndpoint = [navEndpoint watchEndpoint];
+            YTIWatchEndpoint *watchEndpoint = navEndpoint.watchEndpoint;
             if ([watchEndpoint respondsToSelector:@selector(videoId)]) {
-                videoId = [watchEndpoint videoId];
+                videoId = watchEndpoint.videoId;
             }
         }
     } @catch (NSException *e) {}

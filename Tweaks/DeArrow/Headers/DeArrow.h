@@ -19,6 +19,14 @@
 #import "../../YouTubeHeader/YTSingleVideoController.h"
 #import "../../YouTubeHeader/YTPlaybackData.h"
 #import "../../YouTubeHeader/MLVideo.h"
+#import "../../YouTubeHeader/YTInnerTubeCollectionViewController.h"
+#import "../../YouTubeHeader/YTWatchViewController.h"
+#import "../../YouTubeHeader/_ASDisplayView.h"
+#import "../../YouTubeHeader/ASDisplayNode.h"
+#import "../../YouTubeHeader/YTICommand.h"
+// Category to add missing videoId property declaration
+#import "YTIWatchEndpoint.h"
+#import "../../YouTubeHeader/YTInnerTubeSectionController.h"
 
 // DeArrow headers
 #import "DeArrowClient.h"
@@ -41,4 +49,28 @@ extern NSBundle *DeArrowBundle(void);
 extern const void *kDeArrowOriginalTitleKey;
 extern const void *kDeArrowModifiedKey;
 extern const void *kDeArrowVideoIdKey;
+
+// Interface extensions for hooked classes to declare %new methods and properties
+// These help the compiler understand the methods added by Logos %new
+
+@interface YTPlayerViewController (DeArrow)
+@property (nonatomic, copy) NSString *deArrowOriginalTitle;
+@property (nonatomic, copy) NSString *deArrowCurrentVideoId;
+- (void)da_applyDeArrowTitle:(NSString *)newTitle;
+@end
+
+@class DeArrowResult;
+
+@interface YTInnerTubeCollectionViewController (DeArrow)
+- (NSString *)da_extractVideoIdFromCell:(UICollectionViewCell *)cell;
+- (void)da_applyDeArrowResult:(DeArrowResult *)result toCell:(UICollectionViewCell *)cell;
+- (void)da_updateTitleInCell:(UICollectionViewCell *)cell withTitle:(NSString *)newTitle;
+- (BOOL)da_findAndUpdateLabelInView:(UIView *)view withTitle:(NSString *)newTitle;
+- (void)da_updateThumbnailInCell:(UICollectionViewCell *)cell withURL:(NSURL *)thumbnailURL;
+- (BOOL)da_findAndUpdateThumbnailInView:(UIView *)view withURL:(NSURL *)thumbnailURL;
+@end
+
+@interface _ASDisplayView (DeArrow)
+- (void)da_checkAndApplyDeArrow;
+@end
 

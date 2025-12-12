@@ -295,11 +295,9 @@ static NSTimeInterval const kCacheExpirationInterval = 3600; // 1 hour
                 result.thumbnailTimestamp = timestamp;
                 result.hasThumbnail = YES;
                 
-                // Construct thumbnail URL using YouTube's thumbnail service at the specified timestamp
-                // Format: https://i.ytimg.com/vi_webp/VIDEO_ID/mqdefault.webp (we'll handle timestamp client-side)
-                // Or use the DeArrow thumbnail endpoint
-                NSString *thumbURLString = [NSString stringWithFormat:@"%@/api/branding/thumbnail/%@?time=%@",
-                                           [DeArrowPreferences apiInstance] ?: self.apiBaseURL,
+                // Construct thumbnail URL using DeArrow's thumbnail service
+                // API: https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID=xxx&time=xxx
+                NSString *thumbURLString = [NSString stringWithFormat:@"https://dearrow-thumb.ajay.app/api/v1/getThumbnail?videoID=%@&time=%@",
                                            videoId, timestamp];
                 result.thumbnailURL = [NSURL URLWithString:thumbURLString];
             }

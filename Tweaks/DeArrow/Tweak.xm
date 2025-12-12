@@ -224,40 +224,80 @@ static NSString *extractVideoId(id object) {
 
 %new
 - (NSString *)da_extractVideoIdFromCell:(UICollectionViewCell *)cell {
-    // Try to get controller for this cell
+    NSString *cellClass = NSStringFromClass([cell class]);
+    
+    // Skip non-video cells
+    if ([cellClass containsString:@"Drawer"] ||
+        [cellClass containsString:@"Link"] ||
+        [cellClass containsString:@"Chip"] ||
+        [cellClass containsString:@"Header"] ||
+        [cellClass containsString:@"Avatar"] ||
+        [cellClass containsString:@"Separator"]) {
+        return nil; // Not a video cell
+    }
+    
+    DALog(@"🔍 Processing cell class: %@", cellClass);
+    
     @try {
-        id controller = [cell valueForKey:@"_nodeController"];
-        if (!controller) {
-            controller = [cell valueForKey:@"_controller"];
+        // Try to get controller for this cell
+        id controller = nil;
+        
+        // Try different controller key paths
+        NSArray *controllerKeys = @[@"_nodeController", @"_controller", @"_cellController", @"controller"];
+        for (NSString *key in controllerKeys) {
+            @try {
+                controller = [cell valueForKey:key];
+                if (controller) {
+                    DALog(@"  Found controller via key: %@", key);
+                    break;
+                }
+            } @catch (NSException *e) {
+                // Key doesn't exist, try next
+            }
         }
         
         if (controller) {
+            NSString *controllerClass = NSStringFromClass([controller class]);
+            DALog(@"  Controller class: %@", controllerClass);
+            
             // Try multiple paths to get videoId
             NSString *videoId = extractVideoId(controller);
-            if (videoId) return videoId;
+            if (videoId) {
+                DALog(@"  ✅ Found videoId from controller: %@", videoId);
+                return videoId;
+            }
             
             // Try model/renderer
             id model = nil;
             if ([controller respondsToSelector:@selector(model)]) {
                 model = [controller model];
+                DALog(@"  Found model: %@", NSStringFromClass([model class]));
             } else if ([controller respondsToSelector:@selector(renderer)]) {
                 model = [(YTInnerTubeSectionController *)controller renderer];
+                DALog(@"  Found renderer: %@", NSStringFromClass([model class]));
             }
             
             if (model) {
                 videoId = extractVideoId(model);
-                if (videoId) return videoId;
+                if (videoId) {
+                    DALog(@"  ✅ Found videoId from model: %@", videoId);
+                    return videoId;
+                }
             }
         }
         
         // Try accessibilityIdentifier as fallback (some cells encode videoId there)
         NSString *accessId = cell.accessibilityIdentifier;
         if (accessId.length == 11) { // YouTube video IDs are 11 characters
+            DALog(@"  ✅ Found videoId from accessibilityIdentifier: %@", accessId);
             return accessId;
         }
         
+        // Try to find videoId in cell's view hierarchy description
+        DALog(@"  ❌ Could not extract videoId from cell");
+        
     } @catch (NSException *e) {
-        DALog(@"Exception extracting videoId: %@", e);
+        DALog(@"Exception extracting videoId from %@: %@", cellClass, e);
     }
     
     return nil;

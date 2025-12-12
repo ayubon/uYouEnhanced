@@ -1499,12 +1499,24 @@ static NSMutableArray <YTIItemSectionRenderer *> *filteredArray(NSArray <YTIItem
 %end
 
 // Hide Shorts Cells - for uYou 3.0.4+ (PoomSmart/YTUnShorts)
+// DeArrow integration added here
 %hook YTIElementRenderer
 - (NSData *)elementData {
+    NSString *description = [self description];
+    
+    // DeArrow: Check for regular video cells (not shorts)
+    BOOL isVideoCell = [description containsString:@"compact_video.eml"];
+    BOOL isShorts = [description containsString:@"youtube_shorts_"] || [description containsString:@"shorts_shelf"] || [description containsString:@"shorts_video_cell"];
+    
+    if (isVideoCell && !isShorts) {
+        // Log video elements to understand structure
+        if ([[NSUserDefaults standardUserDefaults] boolForKey:@"deArrow_enabled"]) {
+            NSLog(@"[DeArrow] 📺 VIDEO CELL: %@", [description substringToIndex:MIN(800, description.length)]);
+        }
+    }
+    
     // Check if hideShortsCells is enabled
     if ([[NSUserDefaults standardUserDefaults] boolForKey:@"hideShortsCells"]) {
-        NSString *description = [self description];
-        
         BOOL hasShorts = ([description containsString:@"shorts_shelf"] || [description containsString:@"shorts_video_cell"] || [description containsString:@"shorts_grid_shelf_footer"] || [description containsString:@"youtube_shorts_24"]);
         BOOL hasShortsInHistory = [description containsString:@"compact_video.eml"] && [description containsString:@"youtube_shorts_"];
 

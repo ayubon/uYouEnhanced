@@ -23,9 +23,9 @@
 #import "../../YouTubeHeader/YTWatchViewController.h"
 #import "../../YouTubeHeader/_ASDisplayView.h"
 #import "../../YouTubeHeader/ASDisplayNode.h"
-#import "../../YouTubeHeader/YTICommand.h"
-// Category to add missing videoId property declaration
+// Local header with videoId property (not in upstream YouTubeHeader)
 #import "YTIWatchEndpoint.h"
+#import "../../YouTubeHeader/YTICommand.h"
 #import "../../YouTubeHeader/YTInnerTubeSectionController.h"
 
 // DeArrow headers
@@ -38,12 +38,8 @@
 // Bundle helper
 extern NSBundle *DeArrowBundle(void);
 
-// Logging macros
-#ifdef DEBUG
+// Logging macros - Always enabled for debugging
 #define DALog(fmt, ...) NSLog(@"[DeArrow] " fmt, ##__VA_ARGS__)
-#else
-#define DALog(fmt, ...)
-#endif
 
 // Associated object keys for storing original values
 extern const void *kDeArrowOriginalTitleKey;

@@ -92,7 +92,10 @@ static NSString *extractVideoId(id object) {
 - (void)playbackController:(id)controller didActivateVideo:(id)video withPlaybackData:(id)playbackData {
     %orig;
     
+    DALog(@"🎬 playbackController:didActivateVideo: called!");
+    
     if (![DeArrowPreferences isEnabled] || ![DeArrowPreferences replaceInWatch]) {
+        DALog(@"DeArrow disabled for watch, skipping");
         return;
     }
     
@@ -189,7 +192,10 @@ static NSString *extractVideoId(id object) {
 - (void)collectionView:(UICollectionView *)collectionView willDisplayCell:(UICollectionViewCell *)cell forItemAtIndexPath:(NSIndexPath *)indexPath {
     %orig;
     
+    DALog(@"📱 collectionView:willDisplayCell: called at indexPath %@", indexPath);
+    
     if (![DeArrowPreferences isEnabled] || ![DeArrowPreferences replaceInFeed]) {
+        DALog(@"DeArrow disabled for feed, skipping");
         return;
     }
     
@@ -496,6 +502,8 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
 }
 
 %ctor {
+    DALog(@"DeArrow constructor starting...");
+    
     // Register for preference changes
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetDarwinNotifyCenter(),
@@ -509,11 +517,14 @@ static void prefsChanged(CFNotificationCenterRef center, void *observer, CFStrin
     // Load initial preferences
     loadPreferences();
     
-    // Initialize hooks only if enabled
-    if ([DeArrowPreferences isEnabled]) {
-        %init(DeArrowMain);
-    }
+    DALog(@"DeArrow preferences - Enabled: %@, Titles: %@, Feed: %@, Watch: %@",
+          [DeArrowPreferences isEnabled] ? @"YES" : @"NO",
+          [DeArrowPreferences titlesEnabled] ? @"YES" : @"NO",
+          [DeArrowPreferences replaceInFeed] ? @"YES" : @"NO",
+          [DeArrowPreferences replaceInWatch] ? @"YES" : @"NO");
     
-    DALog(@"DeArrow loaded. Enabled: %@", [DeArrowPreferences isEnabled] ? @"YES" : @"NO");
+    // ALWAYS initialize hooks for now (debugging)
+    %init(DeArrowMain);
+    DALog(@"DeArrow hooks initialized!");
 }
 

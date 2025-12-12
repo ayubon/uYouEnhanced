@@ -983,6 +983,26 @@ NSString *cacheDescription = [NSString stringWithFormat:@"%@", GetCacheSize()];
     ];
     [sectionItems addObject:versionSpoofer];
 
+    # pragma mark - DeArrow
+    SECTION_HEADER(LOC(@"DEARROW"));
+
+    SWITCH2(LOC(@"DEARROW_ENABLED"), LOC(@"DEARROW_ENABLED_DESC"), kDeArrowEnabled);
+    SWITCH(LOC(@"DEARROW_TITLES"), LOC(@"DEARROW_TITLES_DESC"), kDeArrowTitlesEnabled);
+    SWITCH(LOC(@"DEARROW_THUMBNAILS"), LOC(@"DEARROW_THUMBNAILS_DESC"), kDeArrowThumbnailsEnabled);
+    SWITCH(LOC(@"DEARROW_FEED"), LOC(@"DEARROW_FEED_DESC"), kDeArrowReplaceInFeed);
+    SWITCH(LOC(@"DEARROW_WATCH"), LOC(@"DEARROW_WATCH_DESC"), kDeArrowReplaceInWatch);
+
+    YTSettingsSectionItem *deArrowCredits = [%c(YTSettingsSectionItem)
+        itemWithTitle:LOC(@"DEARROW_CREDITS")
+        titleDescription:LOC(@"DEARROW_CREDITS_DESC")
+        accessibilityIdentifier:nil
+        detailTextBlock:nil
+        selectBlock:^BOOL (YTSettingsCell *cell, NSUInteger arg1) {
+            return [%c(YTUIUtils) openURL:[NSURL URLWithString:@"https://dearrow.ajay.app"]];
+        }
+    ];
+    [sectionItems addObject:deArrowCredits];
+
     # pragma mark - Miscellaneous
     SECTION_HEADER(LOC(@"MISCELLANEOUS"));
 

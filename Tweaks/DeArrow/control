@@ -1,0 +1,10 @@
+Package: com.uyouenhanced.dearrow
+Name: DeArrow
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: DeArrow integration for YouTube - replaces clickbait titles and thumbnails with community-sourced alternatives
+Maintainer: uYouEnhanced
+Author: uYouEnhanced Contributors
+Section: Tweaks
+Depends: mobilesubstrate (>= 0.9.5000)
+

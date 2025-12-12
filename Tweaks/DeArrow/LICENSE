@@ -1,0 +1,43 @@
+DeArrow Integration for uYouEnhanced
+=====================================
+
+This integration uses the DeArrow API provided by Ajay Ramachandran.
+
+API LICENSE AND TERMS
+---------------------
+
+The DeArrow API (https://sponsor.ajay.app/api/branding) is:
+- Free to use for all non-browser extensions
+- Does not require an API key
+- Subject to the terms at: https://wiki.sponsor.ajay.app/w/API_Docs/DeArrow
+
+DATABASE LICENSE
+----------------
+
+The DeArrow database (crowdsourced titles and thumbnails) is licensed under:
+
+Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+This means:
+- Attribution: You must give appropriate credit to DeArrow/SponsorBlock
+- NonCommercial: You may not use the data for commercial purposes
+- ShareAlike: If you remix/transform, you must distribute under the same license
+
+ATTRIBUTION
+-----------
+
+DeArrow is created by Ajay Ramachandran
+- Website: https://dearrow.ajay.app
+- GitHub: https://github.com/ajayyy/DeArrow
+- API Documentation: https://wiki.sponsor.ajay.app/w/API_Docs/DeArrow
+
+CODE LICENSE
+------------
+
+The DeArrow integration code in this directory (Tweaks/DeArrow/) is part of uYouEnhanced
+and is provided under the same license as the parent project.
+
+Note: This integration only READS data from the DeArrow API. It does not submit
+any data, which would require explicit permission per the API terms.
+

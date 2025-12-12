@@ -307,3 +307,18 @@
 "DEFAULT" = "Default";
 "CUSTOM_COLOR" = "Custom Color";
 "RESTART_REQUIRED" = "App restart is required.";
+
+// DeArrow
+"DEARROW" = "🏷️ DeArrow";
+"DEARROW_ENABLED" = "Enable DeArrow";
+"DEARROW_ENABLED_DESC" = "Replace clickbait titles and thumbnails with community-sourced alternatives. App restart is required.";
+"DEARROW_TITLES" = "Replace Titles";
+"DEARROW_TITLES_DESC" = "Replace clickbait video titles with community submissions.";
+"DEARROW_THUMBNAILS" = "Replace Thumbnails";
+"DEARROW_THUMBNAILS_DESC" = "Replace clickbait thumbnails with video frames chosen by the community.";
+"DEARROW_FEED" = "Apply in Feed";
+"DEARROW_FEED_DESC" = "Replace titles/thumbnails in home feed, search results, and subscriptions.";
+"DEARROW_WATCH" = "Apply on Watch Page";
+"DEARROW_WATCH_DESC" = "Replace the video title on the video player page.";
+"DEARROW_CREDITS" = "DeArrow by Ajay Ramachandran";
+"DEARROW_CREDITS_DESC" = "Data provided by DeArrow (CC BY-NC-SA 4.0). Tap to visit dearrow.ajay.app";

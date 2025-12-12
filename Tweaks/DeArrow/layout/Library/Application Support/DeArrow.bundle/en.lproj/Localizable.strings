@@ -1,0 +1,26 @@
+/* DeArrow Localizable Strings - English */
+
+"DEARROW" = "DeArrow";
+"DEARROW_DESC" = "Replace clickbait titles and thumbnails with community-sourced alternatives";
+
+"DEARROW_ENABLED" = "Enable DeArrow";
+"DEARROW_ENABLED_DESC" = "Master toggle for DeArrow functionality";
+
+"DEARROW_TITLES" = "Replace Titles";
+"DEARROW_TITLES_DESC" = "Replace clickbait titles with community submissions";
+
+"DEARROW_THUMBNAILS" = "Replace Thumbnails";
+"DEARROW_THUMBNAILS_DESC" = "Replace clickbait thumbnails with video frames";
+
+"DEARROW_FEED" = "Apply in Feed";
+"DEARROW_FEED_DESC" = "Replace titles/thumbnails in home, search, and subscriptions";
+
+"DEARROW_WATCH" = "Apply on Watch Page";
+"DEARROW_WATCH_DESC" = "Replace title on the video player page";
+
+"DEARROW_LONG_PRESS" = "Long Press for Original";
+"DEARROW_LONG_PRESS_DESC" = "Long press on a title to see the original";
+
+"DEARROW_API" = "API Instance";
+"DEARROW_API_DESC" = "Custom DeArrow API URL (leave empty for default)";
+

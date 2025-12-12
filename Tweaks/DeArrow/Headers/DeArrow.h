@@ -39,7 +39,9 @@
 extern NSBundle *DeArrowBundle(void);
 
 // Logging macros - Always enabled for debugging
+// Use %{public}@ to avoid iOS privacy filtering in Console.app
 #define DALog(fmt, ...) NSLog(@"[DeArrow] " fmt, ##__VA_ARGS__)
+#define DALogPublic(fmt, ...) os_log(OS_LOG_DEFAULT, "[DeArrow] " fmt, ##__VA_ARGS__)
 
 // Associated object keys for storing original values
 extern const void *kDeArrowOriginalTitleKey;

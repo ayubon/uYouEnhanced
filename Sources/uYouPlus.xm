@@ -1504,14 +1504,10 @@ static NSMutableArray <YTIItemSectionRenderer *> *filteredArray(NSArray <YTIItem
 - (NSData *)elementData {
     NSString *description = [self description];
     
-    // DeArrow: Check for regular video cells (not shorts)
-    BOOL isVideoCell = [description containsString:@"compact_video.eml"];
-    BOOL isShorts = [description containsString:@"youtube_shorts_"] || [description containsString:@"shorts_shelf"] || [description containsString:@"shorts_video_cell"];
-    
-    if (isVideoCell && !isShorts) {
-        // Log video elements to understand structure
-        if ([[NSUserDefaults standardUserDefaults] boolForKey:@"deArrow_enabled"]) {
-            NSLog(@"[DeArrow] 📺 VIDEO CELL: %@", [description substringToIndex:MIN(800, description.length)]);
+    // DeArrow: Log ALL elements containing "video" to find the right pattern
+    if ([[NSUserDefaults standardUserDefaults] boolForKey:@"deArrow_enabled"]) {
+        if ([description containsString:@"video"] || [description containsString:@"Video"]) {
+            NSLog(@"[DeArrow] 🔍 ELEMENT with 'video': %@", [description substringToIndex:MIN(600, description.length)]);
         }
     }
     

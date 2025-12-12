@@ -126,12 +126,12 @@ static NSString *extractVideoId(id object) {
     }
     
     self.deArrowCurrentVideoId = videoId;
-    DALog(@"Player activated video: %@", videoId);
+    NSLog(@"[DeArrow] Player activated video: %s", [videoId UTF8String]);
     
     // Fetch DeArrow data
     [[DeArrowClient sharedInstance] fetchMetadataForVideoId:videoId highPriority:YES completion:^(DeArrowResult *result, NSError *error) {
         if (error || !result || !result.hasTitle) {
-            DALog(@"No DeArrow title for %@: %@", videoId, error.localizedDescription);
+            NSLog(@"[DeArrow] No DeArrow title for %s: %s", [videoId UTF8String], [error.localizedDescription UTF8String]);
             return;
         }
         

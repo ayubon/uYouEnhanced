@@ -519,46 +519,138 @@ static NSString *extractVideoId(id object) {
     
     if (![DeArrowPreferences isEnabled]) return;
     
-    // Check if this might be a video title element
     NSString *accessId = self.accessibilityIdentifier;
-    if ([accessId containsString:@"video_title"] || [accessId containsString:@"metadata"]) {
-        // Try to find associated video ID and apply DeArrow
+    
+    // Check if this is a video list entry (feed video cells)
+    if ([accessId isEqualToString:@"id.elements.components.video_list_entry"]) {
+        DALog(@"📱 Found video_list_entry cell");
+        [self da_checkAndApplyDeArrow];
+    }
+    
+    // Also check for video metadata carousel (watch page)
+    if ([accessId isEqualToString:@"id.ui.video_metadata_carousel"]) {
+        DALog(@"📺 Found video_metadata_carousel");
         [self da_checkAndApplyDeArrow];
     }
 }
 
 %new
 - (void)da_checkAndApplyDeArrow {
-    // Find video ID from parent hierarchy
+    // Try to get the ASDisplayNode for this view
+    id node = nil;
+    @try {
+        node = [self valueForKey:@"asyncdisplaykit_node"];
+    } @catch (NSException *e) {}
+    
+    // Try to find videoId from the node/element hierarchy
     NSString *videoId = nil;
-    UIResponder *responder = self.nextResponder;
     
-    while (responder && !videoId) {
-        videoId = extractVideoId(responder);
-        if (!videoId && [responder respondsToSelector:@selector(accessibilityIdentifier)]) {
-            NSString *identifier = [(UIView *)responder accessibilityIdentifier];
-            if (identifier.length == 11) {
-                videoId = identifier;
-            }
-        }
-        responder = responder.nextResponder;
-    }
-    
-    if (!videoId) return;
-    
-    DeArrowResult *cached = [[DeArrowClient sharedInstance] cachedResultForVideoId:videoId];
-    if (cached && cached.hasTitle && [DeArrowPreferences titlesEnabled]) {
-        // Find and update labels in this view
-        for (UIView *subview in self.subviews) {
-            if ([subview isKindOfClass:[UILabel class]]) {
-                UILabel *label = (UILabel *)subview;
-                if (label.text.length > 15 && ![label.text isEqualToString:cached.title]) {
-                    label.text = cached.title;
-                    DALog(@"Updated ELM label: %@", cached.title);
+    // Method 1: Check the element's description for videoId pattern
+    if (node) {
+        @try {
+            id element = [node valueForKey:@"element"];
+            if (element) {
+                NSString *desc = [element description];
+                // Look for videoId pattern (11 chars, alphanumeric with - and _)
+                NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"videoId[\":]\\s*[\"']?([a-zA-Z0-9_-]{11})" options:0 error:nil];
+                NSTextCheckingResult *match = [regex firstMatchInString:desc options:0 range:NSMakeRange(0, MIN(2000, desc.length))];
+                if (match && match.numberOfRanges > 1) {
+                    videoId = [desc substringWithRange:[match rangeAtIndex:1]];
+                    DALog(@"Found videoId from element: %@", videoId);
                 }
             }
+        } @catch (NSException *e) {}
+    }
+    
+    // Method 2: Walk responder chain
+    if (!videoId) {
+        UIResponder *responder = self.nextResponder;
+        int depth = 0;
+        while (responder && !videoId && depth < 20) {
+            videoId = extractVideoId(responder);
+            responder = responder.nextResponder;
+            depth++;
         }
     }
+    
+    if (!videoId) {
+        DALog(@"Could not find videoId for this cell");
+        return;
+    }
+    
+    DALog(@"Processing cell with videoId: %@", videoId);
+    
+    // Check cache first, otherwise fetch
+    DeArrowResult *cached = [[DeArrowClient sharedInstance] cachedResultForVideoId:videoId];
+    if (cached && cached.hasTitle && [DeArrowPreferences titlesEnabled]) {
+        [self da_replaceTitleWithDeArrow:cached.title];
+    } else {
+        // Fetch asynchronously
+        __weak typeof(self) weakSelf = self;
+        [[DeArrowClient sharedInstance] fetchMetadataForVideoId:videoId highPriority:NO completion:^(DeArrowResult *result, NSError *error) {
+            if (result && result.hasTitle && [DeArrowPreferences titlesEnabled]) {
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf da_replaceTitleWithDeArrow:result.title];
+                });
+            }
+        }];
+    }
+}
+
+%new
+- (void)da_replaceTitleWithDeArrow:(NSString *)newTitle {
+    // Find title labels in this view's hierarchy
+    [self da_searchAndReplaceTitle:self withTitle:newTitle depth:0];
+}
+
+%new
+- (BOOL)da_searchAndReplaceTitle:(UIView *)view withTitle:(NSString *)newTitle depth:(int)depth {
+    if (depth > 10) return NO;
+    
+    // Check if this is a label with title-like text
+    if ([view isKindOfClass:[UILabel class]]) {
+        UILabel *label = (UILabel *)view;
+        // Title heuristics: long text, larger font, usually 2+ lines allowed
+        if (label.text.length > 15 && label.font.pointSize >= 14 && 
+            (label.numberOfLines == 0 || label.numberOfLines > 1)) {
+            if (![label.text isEqualToString:newTitle]) {
+                DALog(@"✅ Replacing title: '%@' -> '%@'", label.text, newTitle);
+                label.text = newTitle;
+                return YES;
+            }
+        }
+    }
+    
+    // Check ASTextNode via _ASDisplayView
+    if ([view isKindOfClass:%c(_ASDisplayView)]) {
+        @try {
+            id node = [view valueForKey:@"asyncdisplaykit_node"];
+            if ([node isKindOfClass:%c(ASTextNode)]) {
+                NSAttributedString *attrText = [node valueForKey:@"attributedText"];
+                if (attrText.string.length > 15) {
+                    UIFont *font = [attrText attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
+                    if (font.pointSize >= 14) {
+                        if (![attrText.string isEqualToString:newTitle]) {
+                            NSDictionary *attrs = [attrText attributesAtIndex:0 effectiveRange:nil];
+                            NSAttributedString *newAttr = [[NSAttributedString alloc] initWithString:newTitle attributes:attrs];
+                            [node setValue:newAttr forKey:@"attributedText"];
+                            DALog(@"✅ Replacing ASTextNode: '%@' -> '%@'", attrText.string, newTitle);
+                            return YES;
+                        }
+                    }
+                }
+            }
+        } @catch (NSException *e) {}
+    }
+    
+    // Recurse into subviews
+    for (UIView *subview in view.subviews) {
+        if ([self da_searchAndReplaceTitle:subview withTitle:newTitle depth:depth+1]) {
+            return YES;
+        }
+    }
+    
+    return NO;
 }
 
 %end

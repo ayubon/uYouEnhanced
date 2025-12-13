@@ -72,5 +72,7 @@ extern const void *kDeArrowVideoIdKey;
 
 @interface _ASDisplayView (DeArrow)
 - (void)da_checkAndApplyDeArrow;
+- (void)da_replaceTitleWithDeArrow:(NSString *)newTitle;
+- (BOOL)da_searchAndReplaceTitle:(UIView *)view withTitle:(NSString *)newTitle depth:(int)depth;
 @end
 

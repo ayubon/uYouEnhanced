@@ -74,5 +74,12 @@ extern const void *kDeArrowVideoIdKey;
 - (void)da_checkAndApplyDeArrow;
 - (void)da_replaceTitleWithDeArrow:(NSString *)newTitle;
 - (BOOL)da_searchAndReplaceTitle:(UIView *)view withTitle:(NSString *)newTitle depth:(int)depth;
+// New verified methods for eml.vwc cells
+- (void)da_processVideoCell;
+- (NSString *)da_extractTitleFromLabel:(NSString *)label;
+- (NSString *)da_findVideoIdInHierarchy;
+- (void)da_fetchAndApplyDeArrow:(NSString *)videoId originalTitle:(NSString *)originalTitle;
+- (void)da_applyDeArrowToCell:(NSString *)newTitle originalTitle:(NSString *)originalTitle;
+- (void)da_updateTextInNode:(id)node newTitle:(NSString *)newTitle originalTitle:(NSString *)originalTitle;
 @end
 

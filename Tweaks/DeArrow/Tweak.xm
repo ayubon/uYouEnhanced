@@ -191,57 +191,68 @@ static NSString *extractVideoId(id object) {
 
 %new
 - (BOOL)da_findTitleLabelInView:(UIView *)view withNewTitle:(NSString *)newTitle depth:(int)depth {
-    if (depth > 15) return NO;
+    if (depth > 20) return NO;
     
-    // Check UILabel
+    // Check UILabel - relaxed criteria
     if ([view isKindOfClass:[UILabel class]]) {
         UILabel *label = (UILabel *)view;
         NSString *text = label.text;
         
-        // Video titles are typically 20+ chars, allow multiple lines
-        if (text.length > 20 && (label.numberOfLines == 0 || label.numberOfLines > 1)) {
-            // Check if this looks like a video title (not a channel name, not a count)
-            // Title labels typically have larger fonts
-            if (label.font.pointSize >= 16) {
-                if (!self.deArrowOriginalTitle) {
-                    self.deArrowOriginalTitle = text;
-                }
-                label.text = newTitle;
-                DALog(@"✅ Updated UILabel: font=%.0f lines=%ld '%@' -> '%@'", 
-                      label.font.pointSize, (long)label.numberOfLines, text, newTitle);
-                return YES;
+        // Log labels with significant text for debugging
+        if (text.length > 15 && label.font.pointSize >= 12) {
+            DALog(@"🔤 Label: font=%.0f lines=%ld len=%lu '%@'", 
+                  label.font.pointSize, (long)label.numberOfLines, (unsigned long)text.length,
+                  [text substringToIndex:MIN(50, text.length)]);
+        }
+        
+        // Relaxed: 15+ chars, font 12+, multiline allowed
+        if (text.length > 15 && label.font.pointSize >= 12 && 
+            (label.numberOfLines == 0 || label.numberOfLines > 1)) {
+            if (!self.deArrowOriginalTitle) {
+                self.deArrowOriginalTitle = text;
             }
+            label.text = newTitle;
+            DALog(@"✅ Updated UILabel: font=%.0f lines=%ld '%@' -> '%@'", 
+                  label.font.pointSize, (long)label.numberOfLines, text, newTitle);
+            return YES;
         }
     }
     
     // Check for ASTextNode (Texture framework)
     if ([view isKindOfClass:%c(_ASDisplayView)]) {
-        // ASDisplayView wraps ASDisplayNode
-        id node = [view valueForKey:@"asyncdisplaykit_node"];
-        if ([node isKindOfClass:%c(ASTextNode)]) {
-            NSAttributedString *attrText = [node valueForKey:@"attributedText"];
-            NSString *text = attrText.string;
-            
-            if (text.length > 20) {
-                // Get font size from attributed string
-                UIFont *font = [attrText attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
-                if (font.pointSize >= 16) {
-                    if (!self.deArrowOriginalTitle) {
-                        self.deArrowOriginalTitle = text;
+        @try {
+            id node = [view valueForKey:@"asyncdisplaykit_node"];
+            if ([node isKindOfClass:%c(ASTextNode)]) {
+                NSAttributedString *attrText = [node valueForKey:@"attributedText"];
+                NSString *text = attrText.string;
+                
+                if (text.length > 15) {
+                    UIFont *font = [attrText attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
+                    
+                    // Log for debugging
+                    DALog(@"🔤 ASText: font=%.0f len=%lu '%@'", 
+                          font ? font.pointSize : 0, (unsigned long)text.length,
+                          [text substringToIndex:MIN(50, text.length)]);
+                    
+                    // Relaxed font requirement
+                    if (!font || font.pointSize >= 12) {
+                        if (!self.deArrowOriginalTitle) {
+                            self.deArrowOriginalTitle = text;
+                        }
+                        
+                        NSDictionary *attrs = attrText.length > 0 ? [attrText attributesAtIndex:0 effectiveRange:nil] : @{};
+                        NSAttributedString *newAttr = [[NSAttributedString alloc] initWithString:newTitle attributes:attrs];
+                        [node setValue:newAttr forKey:@"attributedText"];
+                        
+                        DALog(@"✅ Updated ASTextNode: font=%.0f '%@' -> '%@'", font ? font.pointSize : 0, text, newTitle);
+                        return YES;
                     }
-                    
-                    // Create new attributed string with same attributes
-                    NSMutableAttributedString *newAttr = [[NSMutableAttributedString alloc] initWithString:newTitle attributes:[attrText attributesAtIndex:0 effectiveRange:nil]];
-                    [node setValue:newAttr forKey:@"attributedText"];
-                    
-                    DALog(@"✅ Updated ASTextNode: font=%.0f '%@' -> '%@'", font.pointSize, text, newTitle);
-                    return YES;
                 }
             }
-        }
+        } @catch (NSException *e) {}
     }
     
-    // Recurse
+    // Recurse into subviews
     for (UIView *subview in view.subviews) {
         if ([self da_findTitleLabelInView:subview withNewTitle:newTitle depth:depth+1]) {
             return YES;
@@ -517,21 +528,201 @@ static NSString *extractVideoId(id object) {
 - (void)didMoveToWindow {
     %orig;
     
-    if (![DeArrowPreferences isEnabled]) return;
+    if (![DeArrowPreferences isEnabled] || ![DeArrowPreferences replaceInFeed]) return;
     
     NSString *accessId = self.accessibilityIdentifier;
     
-    // Check if this is a video list entry (feed video cells)
-    if ([accessId isEqualToString:@"id.elements.components.video_list_entry"]) {
-        DALog(@"📱 Found video_list_entry cell");
-        [self da_checkAndApplyDeArrow];
+    // VERIFIED: eml.vwc is the identifier for video cells with context
+    // accessibilityLabel contains: "TITLE - duration - Go to channel - CHANNEL - views - time - play video"
+    if ([accessId isEqualToString:@"eml.vwc"]) {
+        DALog(@"📱 Found eml.vwc cell");
+        [self da_processVideoCell];
+    }
+}
+
+%new
+- (void)da_processVideoCell {
+    NSString *label = self.accessibilityLabel;
+    if (!label.length) {
+        DALog(@"No accessibility label");
+        return;
     }
     
-    // Also check for video metadata carousel (watch page)
-    if ([accessId isEqualToString:@"id.ui.video_metadata_carousel"]) {
-        DALog(@"📺 Found video_metadata_carousel");
-        [self da_checkAndApplyDeArrow];
+    DALog(@"AccessibilityLabel: %@", [label substringToIndex:MIN(100, label.length)]);
+    
+    // Parse title from accessibility label
+    // Format: "TITLE - duration - Go to channel - CHANNEL - views - time - play video"
+    NSString *originalTitle = [self da_extractTitleFromLabel:label];
+    if (!originalTitle.length) {
+        DALog(@"Could not extract title");
+        return;
     }
+    
+    DALog(@"Extracted title: %@", originalTitle);
+    
+    // Try to find videoId from parent hierarchy
+    NSString *videoId = [self da_findVideoIdInHierarchy];
+    
+    if (videoId) {
+        DALog(@"Found videoId: %@", videoId);
+        [self da_fetchAndApplyDeArrow:videoId originalTitle:originalTitle];
+    } else {
+        DALog(@"Could not find videoId in hierarchy");
+    }
+}
+
+%new
+- (NSString *)da_extractTitleFromLabel:(NSString *)label {
+    // Title is everything before " - " followed by duration pattern or "Go to channel"
+    // Example: "How One Company Secretly Poisoned The Planet - 54 minutes, 8 seconds - Go to channel..."
+    
+    // First try to find " - " followed by duration or "Go to"
+    NSArray *patterns = @[@" - \\d+ (minute|second|hour)", @" - Go to channel"];
+    
+    for (NSString *pattern in patterns) {
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+        NSTextCheckingResult *match = [regex firstMatchInString:label options:0 range:NSMakeRange(0, label.length)];
+        if (match) {
+            NSRange titleRange = NSMakeRange(0, match.range.location);
+            return [label substringWithRange:titleRange];
+        }
+    }
+    
+    // Fallback: split by " - " and take first component
+    NSArray *components = [label componentsSeparatedByString:@" - "];
+    if (components.count > 0) {
+        return components[0];
+    }
+    
+    return nil;
+}
+
+%new
+- (NSString *)da_findVideoIdInHierarchy {
+    // Walk up the view hierarchy looking for videoId
+    UIResponder *responder = self;
+    int depth = 0;
+    
+    while (responder && depth < 30) {
+        // Try extractVideoId helper
+        NSString *videoId = extractVideoId(responder);
+        if (videoId) return videoId;
+        
+        // Check if this is a YTVideoWithContextNode-View or similar
+        NSString *className = NSStringFromClass([responder class]);
+        if ([className containsString:@"VideoWithContext"] || [className containsString:@"VideoCell"]) {
+            DALog(@"Found potential video container: %@", className);
+            
+            // Try to get node and extract videoId
+            if ([responder isKindOfClass:[UIView class]]) {
+                @try {
+                    id node = [(UIView *)responder valueForKey:@"asyncdisplaykit_node"];
+                    if (node) {
+                        videoId = extractVideoId(node);
+                        if (videoId) return videoId;
+                        
+                        // Try element
+                        id element = [node valueForKey:@"element"];
+                        if (element) {
+                            NSString *desc = [element description];
+                            // Look for videoId pattern in description
+                            NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:@"['\"]([a-zA-Z0-9_-]{11})['\"]" options:0 error:nil];
+                            NSArray *matches = [regex matchesInString:desc options:0 range:NSMakeRange(0, MIN(2000, desc.length))];
+                            for (NSTextCheckingResult *match in matches) {
+                                if (match.numberOfRanges > 1) {
+                                    NSString *potentialId = [desc substringWithRange:[match rangeAtIndex:1]];
+                                    // Validate it looks like a video ID (not a hash or other string)
+                                    if (![potentialId hasPrefix:@"0x"]) {
+                                        return potentialId;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } @catch (NSException *e) {}
+            }
+        }
+        
+        responder = responder.nextResponder;
+        depth++;
+    }
+    
+    return nil;
+}
+
+%new
+- (void)da_fetchAndApplyDeArrow:(NSString *)videoId originalTitle:(NSString *)originalTitle {
+    // Check cache first
+    DeArrowResult *cached = [[DeArrowClient sharedInstance] cachedResultForVideoId:videoId];
+    if (cached && cached.hasTitle && [DeArrowPreferences titlesEnabled]) {
+        [self da_applyDeArrowToCell:cached.title originalTitle:originalTitle];
+        return;
+    }
+    
+    // Fetch from API
+    __weak typeof(self) weakSelf = self;
+    [[DeArrowClient sharedInstance] fetchMetadataForVideoId:videoId highPriority:NO completion:^(DeArrowResult *result, NSError *error) {
+        if (result && result.hasTitle && [DeArrowPreferences titlesEnabled]) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [weakSelf da_applyDeArrowToCell:result.title originalTitle:originalTitle];
+            });
+        }
+    }];
+}
+
+%new
+- (void)da_applyDeArrowToCell:(NSString *)newTitle originalTitle:(NSString *)originalTitle {
+    DALog(@"✅ Applying DeArrow: '%@' -> '%@'", originalTitle, newTitle);
+    
+    // Update accessibility label (replace the title portion)
+    NSString *currentLabel = self.accessibilityLabel;
+    if (currentLabel && originalTitle) {
+        NSString *newLabel = [currentLabel stringByReplacingOccurrencesOfString:originalTitle withString:newTitle];
+        self.accessibilityLabel = newLabel;
+    }
+    
+    // Now find and update the actual displayed text in the node
+    @try {
+        id node = [self valueForKey:@"asyncdisplaykit_node"];
+        if (node) {
+            [self da_updateTextInNode:node newTitle:newTitle originalTitle:originalTitle];
+        }
+    } @catch (NSException *e) {
+        DALog(@"Exception updating node: %@", e);
+    }
+}
+
+%new
+- (void)da_updateTextInNode:(id)node newTitle:(NSString *)newTitle originalTitle:(NSString *)originalTitle {
+    // Try to find text content in the node hierarchy
+    @try {
+        // Check if node has attributedText (ASTextNode)
+        if ([node respondsToSelector:@selector(attributedText)]) {
+            NSAttributedString *attrText = [node performSelector:@selector(attributedText)];
+            if ([attrText.string containsString:originalTitle]) {
+                NSMutableAttributedString *newAttr = [attrText mutableCopy];
+                NSRange range = [newAttr.string rangeOfString:originalTitle];
+                if (range.location != NSNotFound) {
+                    [newAttr replaceCharactersInRange:range withString:newTitle];
+                    [node setValue:newAttr forKey:@"attributedText"];
+                    DALog(@"Updated attributedText in node");
+                    
+                    // Force layout update
+                    if ([node respondsToSelector:@selector(setNeedsLayout)]) {
+                        [node setNeedsLayout];
+                    }
+                }
+            }
+        }
+        
+        // Check children
+        if ([node respondsToSelector:@selector(subnodes)]) {
+            NSArray *subnodes = [node performSelector:@selector(subnodes)];
+            for (id subnode in subnodes) {
+                [self da_updateTextInNode:subnode newTitle:newTitle originalTitle:originalTitle];
+            }
+        }
+    } @catch (NSException *e) {}
 }
 
 %new

@@ -72,6 +72,15 @@ static NSString *extractVideoId(id object) {
     return nil;
 }
 
+// Static storage for current DeArrow title (for YTFormattedStringLabel hook)
+static NSString *s_currentDeArrowTitle = nil;
+static NSString *s_currentVideoId = nil;
+
+static void da_setCurrentDeArrowTitle(NSString *title, NSString *videoId) {
+    s_currentDeArrowTitle = [title copy];
+    s_currentVideoId = [videoId copy];
+}
+
 #pragma mark - Main Hooks Group
 
 %group DeArrowMain
@@ -141,6 +150,10 @@ static NSString *extractVideoId(id object) {
         }
         
         DALog(@"Applying DeArrow title: %@", result.title);
+        
+        // Store the DeArrow title for YTFormattedStringLabel hook to use
+        da_setCurrentDeArrowTitle(result.title, videoId);
+        
         [self da_applyDeArrowTitle:result.title];
     }];
 }
@@ -880,6 +893,48 @@ static NSString *extractVideoId(id object) {
         DALog(@"Watch page: applying title %@", result.title);
         // Title will be applied via YTPlayerViewController hook
     }];
+}
+
+%end
+
+/**
+ * Hook: YTFormattedStringLabel
+ * Purpose: Replace watch page title with DeArrow title
+ * 
+ * FLEX-verified: accessibilityIdentifier = "id.upload_metadata_editor_title_field"
+ */
+%hook YTFormattedStringLabel
+
+- (void)setFormattedString:(id)formattedString {
+    %orig;
+    
+    if (![DeArrowPreferences isEnabled] || ![DeArrowPreferences titlesEnabled] || ![DeArrowPreferences replaceInWatch]) {
+        return;
+    }
+    
+    // Check if this is the watch page title (FLEX-verified identifier)
+    // Cast to UIView to access accessibilityIdentifier (YTFormattedStringLabel is a UILabel subclass)
+    NSString *accessId = [(UIView *)self accessibilityIdentifier];
+    if ([accessId isEqualToString:@"id.upload_metadata_editor_title_field"]) {
+        DALog(@"🎬 Found watch title label with identifier");
+        
+        NSString *deArrowTitle = s_currentDeArrowTitle;
+        
+        if (deArrowTitle.length > 0) {
+            DALog(@"✅ Replacing watch title with DeArrow: %@", deArrowTitle);
+            
+            // Create new formatted string with DeArrow title
+            Class YTIFormattedStringClass = NSClassFromString(@"YTIFormattedString");
+            id newFormattedString = [YTIFormattedStringClass performSelector:@selector(formattedStringWithString:) withObject:deArrowTitle];
+            
+            if (newFormattedString) {
+                // Apply it (call orig again with new string)
+                %orig(newFormattedString);
+            }
+        } else {
+            DALog(@"No DeArrow title available yet");
+        }
+    }
 }
 
 %end

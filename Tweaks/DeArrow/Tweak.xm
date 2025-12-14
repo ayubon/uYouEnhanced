@@ -204,65 +204,39 @@ static void da_setCurrentDeArrowTitle(NSString *title, NSString *videoId) {
 
 %new
 - (BOOL)da_findTitleLabelInView:(UIView *)view withNewTitle:(NSString *)newTitle depth:(int)depth {
-    if (depth > 20) return NO;
+    if (depth > 30) return NO;
     
-    // Check UILabel - relaxed criteria
-    if ([view isKindOfClass:[UILabel class]]) {
-        UILabel *label = (UILabel *)view;
-        NSString *text = label.text;
+    // FLEX-verified: Look for YTFormattedStringLabel with accessibilityIdentifier = "id.upload_metadata_editor_title_field"
+    NSString *accessId = view.accessibilityIdentifier;
+    
+    if ([accessId isEqualToString:@"id.upload_metadata_editor_title_field"]) {
+        DALog(@"🎯 Found title label by identifier! Class: %@", NSStringFromClass([view class]));
         
-        // Log labels with significant text for debugging
-        if (text.length > 15 && label.font.pointSize >= 12) {
-            DALog(@"🔤 Label: font=%.0f lines=%ld len=%lu '%@'", 
-                  label.font.pointSize, (long)label.numberOfLines, (unsigned long)text.length,
-                  [text substringToIndex:MIN(50, text.length)]);
-        }
-        
-        // Relaxed: 15+ chars, font 12+, multiline allowed
-        if (text.length > 15 && label.font.pointSize >= 12 && 
-            (label.numberOfLines == 0 || label.numberOfLines > 1)) {
+        // It's a YTFormattedStringLabel (subclass of UILabel)
+        if ([view isKindOfClass:[UILabel class]]) {
+            UILabel *label = (UILabel *)view;
+            NSString *oldText = label.text;
+            
             if (!self.deArrowOriginalTitle) {
-                self.deArrowOriginalTitle = text;
+                self.deArrowOriginalTitle = oldText;
             }
-            label.text = newTitle;
-            DALog(@"✅ Updated UILabel: font=%.0f lines=%ld '%@' -> '%@'", 
-                  label.font.pointSize, (long)label.numberOfLines, text, newTitle);
-            return YES;
-        }
-    }
-    
-    // Check for ASTextNode (Texture framework)
-    if ([view isKindOfClass:%c(_ASDisplayView)]) {
-        @try {
-            id node = [view valueForKey:@"asyncdisplaykit_node"];
-            if ([node isKindOfClass:%c(ASTextNode)]) {
-                NSAttributedString *attrText = [node valueForKey:@"attributedText"];
-                NSString *text = attrText.string;
-                
-                if (text.length > 15) {
-                    UIFont *font = [attrText attribute:NSFontAttributeName atIndex:0 effectiveRange:nil];
-                    
-                    // Log for debugging
-                    DALog(@"🔤 ASText: font=%.0f len=%lu '%@'", 
-                          font ? font.pointSize : 0, (unsigned long)text.length,
-                          [text substringToIndex:MIN(50, text.length)]);
-                    
-                    // Relaxed font requirement
-                    if (!font || font.pointSize >= 12) {
-                        if (!self.deArrowOriginalTitle) {
-                            self.deArrowOriginalTitle = text;
-                        }
-                        
-                        NSDictionary *attrs = attrText.length > 0 ? [attrText attributesAtIndex:0 effectiveRange:nil] : @{};
-                        NSAttributedString *newAttr = [[NSAttributedString alloc] initWithString:newTitle attributes:attrs];
-                        [node setValue:newAttr forKey:@"attributedText"];
-                        
-                        DALog(@"✅ Updated ASTextNode: font=%.0f '%@' -> '%@'", font ? font.pointSize : 0, text, newTitle);
-                        return YES;
-                    }
+            
+            // Try to use setFormattedString: if available
+            Class YTIFormattedStringClass = NSClassFromString(@"YTIFormattedString");
+            if (YTIFormattedStringClass && [view respondsToSelector:@selector(setFormattedString:)]) {
+                id newFormattedString = [YTIFormattedStringClass performSelector:@selector(formattedStringWithString:) withObject:newTitle];
+                if (newFormattedString) {
+                    [view performSelector:@selector(setFormattedString:) withObject:newFormattedString];
+                    DALog(@"✅ Updated via setFormattedString: '%@' -> '%@'", oldText, newTitle);
+                    return YES;
                 }
             }
-        } @catch (NSException *e) {}
+            
+            // Fallback: direct text update
+            label.text = newTitle;
+            DALog(@"✅ Updated via label.text: '%@' -> '%@'", oldText, newTitle);
+            return YES;
+        }
     }
     
     // Recurse into subviews

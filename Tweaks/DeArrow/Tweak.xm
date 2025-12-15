@@ -179,27 +179,27 @@ static void da_setCurrentDeArrowTitle(NSString *title, NSString *videoId) {
 
 %new
 - (void)da_attemptTitleUpdate:(NSString *)newTitle {
-    // Get the watch view controller's view hierarchy
-    UIViewController *watchVC = nil;
-    UIViewController *current = (UIViewController *)self;
-    while (current) {
-        if ([current isKindOfClass:%c(YTWatchViewController)] || 
-            [NSStringFromClass([current class]) containsString:@"Watch"]) {
-            watchVC = current;
+    // Search from key window to ensure we find the label regardless of VC hierarchy
+    UIWindow *keyWindow = nil;
+    for (UIWindow *window in [UIApplication sharedApplication].windows) {
+        if (window.isKeyWindow) {
+            keyWindow = window;
             break;
         }
-        current = current.parentViewController;
     }
     
-    if (!watchVC) {
-        DALog(@"Could not find watch view controller");
+    if (!keyWindow) {
+        DALog(@"Could not find key window");
         return;
     }
     
-    DALog(@"Found watch VC: %@, searching for title...", NSStringFromClass([watchVC class]));
+    DALog(@"Searching key window for title label...");
     
-    // Search the entire view hierarchy for title-like labels
-    [self da_findTitleLabelInView:watchVC.view withNewTitle:newTitle depth:0];
+    // Search the entire view hierarchy for the title label
+    BOOL found = [self da_findTitleLabelInView:keyWindow withNewTitle:newTitle depth:0];
+    if (!found) {
+        DALog(@"Title label not found in hierarchy");
+    }
 }
 
 %new
@@ -215,13 +215,14 @@ static void da_setCurrentDeArrowTitle(NSString *title, NSString *videoId) {
         // It's a YTFormattedStringLabel (subclass of UILabel)
         if ([view isKindOfClass:[UILabel class]]) {
             UILabel *label = (UILabel *)view;
-            NSString *oldText = label.text;
+            // Get text from attributedText since .text is nil for this label
+            NSString *oldText = label.attributedText.string ?: label.text;
             
             if (!self.deArrowOriginalTitle) {
                 self.deArrowOriginalTitle = oldText;
             }
             
-            // Try to use setFormattedString: if available
+            // Try to use setFormattedString: if available (preferred method)
             Class YTIFormattedStringClass = NSClassFromString(@"YTIFormattedString");
             if (YTIFormattedStringClass && [view respondsToSelector:@selector(setFormattedString:)]) {
                 id newFormattedString = [YTIFormattedStringClass performSelector:@selector(formattedStringWithString:) withObject:newTitle];
@@ -232,7 +233,16 @@ static void da_setCurrentDeArrowTitle(NSString *title, NSString *videoId) {
                 }
             }
             
-            // Fallback: direct text update
+            // Fallback: use attributedText with existing attributes
+            if (label.attributedText.length > 0) {
+                NSDictionary *attrs = [label.attributedText attributesAtIndex:0 effectiveRange:nil];
+                NSAttributedString *newAttrText = [[NSAttributedString alloc] initWithString:newTitle attributes:attrs];
+                label.attributedText = newAttrText;
+                DALog(@"✅ Updated via attributedText: '%@' -> '%@'", oldText, newTitle);
+                return YES;
+            }
+            
+            // Last resort: direct text update
             label.text = newTitle;
             DALog(@"✅ Updated via label.text: '%@' -> '%@'", oldText, newTitle);
             return YES;
